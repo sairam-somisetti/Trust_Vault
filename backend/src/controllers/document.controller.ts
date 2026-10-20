@@ -118,17 +118,27 @@ export class DocumentController {
       const search = (req.query.search as string) || '';
       const category = (req.query.category as string) || '';
       const ownerEmail = (req.query.owner as string) || '';
+      const scope = (req.query.scope as string) || 'all'; // 'all' | 'owned' | 'shared'
+      const includeGrants = req.query.includeGrants === 'true';
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
       const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
 
-      // Base query: Only documents owned by or granted to actor
+      // Base query: Filter by scope while maintaining strict access boundaries
       const where: any = {
         isDeleted: false,
-        OR: [
+      };
+
+      if (scope === 'shared') {
+        where.ownerId = { not: actor.id };
+        where.grants = { some: { userId: actor.id } };
+      } else if (scope === 'owned') {
+        where.ownerId = actor.id;
+      } else {
+        where.OR = [
           { ownerId: actor.id },
           { grants: { some: { userId: actor.id } } },
-        ],
-      };
+        ];
+      }
 
       if (search) {
         where.name = { contains: search };
@@ -162,11 +172,24 @@ export class DocumentController {
             where: { userId: actor.id },
             select: { permission: true, grantedAt: true },
           },
+          ...(includeGrants && {
+            allGrants: {
+              select: {
+                id: true,
+                userId: true,
+                permission: true,
+                grantedAt: true,
+                notes: true,
+                user: { select: { id: true, name: true, email: true, role: true } },
+                grantedBy: { select: { id: true, name: true, email: true } },
+              },
+            },
+          }),
         },
       });
 
       // Map to include user's effective permission
-      const result = documents.map((doc) => {
+      const result = documents.map((doc: any) => {
         const isOwner = doc.ownerId === actor.id;
         const grant = doc.grants[0];
         return {
@@ -180,6 +203,7 @@ export class DocumentController {
           userPermission: isOwner ? 'OWNER' : grant ? grant.permission : 'NONE',
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
+          ...(isOwner && includeGrants && { grants: doc.allGrants || [] }),
         };
       });
 
@@ -200,6 +224,24 @@ export class DocumentController {
     try {
       const { document, grant } = await authorizeDocumentAccess(req, documentId, 'READ');
 
+      const isOwner = document.ownerId === actor.id;
+      const owner = await prisma.user.findUnique({
+        where: { id: document.ownerId },
+        select: { id: true, name: true, email: true },
+      });
+
+      let grants: any[] = [];
+      if (isOwner) {
+        grants = await prisma.documentGrant.findMany({
+          where: { documentId: document.id },
+          include: {
+            user: { select: { id: true, name: true, email: true, role: true } },
+            grantedBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { grantedAt: 'desc' },
+        });
+      }
+
       await AuditService.log({
         actorId: actor.id,
         actorEmail: actor.email,
@@ -208,7 +250,7 @@ export class DocumentController {
         resourceId: document.id,
         resourceType: 'DOCUMENT',
         status: 'SUCCESS',
-        details: { isOwner: document.ownerId === actor.id, permission: grant?.permission || 'OWNER' },
+        details: { isOwner, permission: grant?.permission || 'OWNER' },
       });
 
       return res.json({
@@ -219,11 +261,13 @@ export class DocumentController {
           mimeType: document.mimeType,
           fileSize: document.fileSize,
           ownerId: document.ownerId,
+          owner,
           checksum: document.checksum,
-          isOwner: document.ownerId === actor.id,
-          permission: document.ownerId === actor.id ? 'OWNER' : grant?.permission,
+          isOwner,
+          permission: isOwner ? 'OWNER' : grant?.permission,
           createdAt: document.createdAt,
           updatedAt: document.updatedAt,
+          grants,
         },
       });
     } catch (error: any) {

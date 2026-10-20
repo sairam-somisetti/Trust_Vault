@@ -36,6 +36,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     } catch {
       errorData = { message: response.statusText };
     }
+
+    if (response.status === 401) {
+      localStorage.removeItem('tv_token');
+      window.dispatchEvent(new CustomEvent('tv_unauthorized'));
+    }
+
     throw new ApiError(errorData.message || 'API Request Failed', response.status, errorData);
   }
 
@@ -67,11 +73,21 @@ export const api = {
   me: () => request<{ user: User }>('/auth/me'),
 
   // Documents
-  listDocuments: (query: { search?: string; category?: string; owner?: string; startDate?: string; endDate?: string } = {}) => {
+  listDocuments: (query: {
+    search?: string;
+    category?: string;
+    owner?: string;
+    scope?: 'all' | 'owned' | 'shared';
+    includeGrants?: boolean;
+    startDate?: string;
+    endDate?: string;
+  } = {}) => {
     const params = new URLSearchParams();
     if (query.search) params.append('search', query.search);
     if (query.category) params.append('category', query.category);
     if (query.owner) params.append('owner', query.owner);
+    if (query.scope) params.append('scope', query.scope);
+    if (query.includeGrants) params.append('includeGrants', 'true');
     if (query.startDate) params.append('startDate', query.startDate);
     if (query.endDate) params.append('endDate', query.endDate);
     return request<{ documents: DocumentItem[] }>(`/documents?${params.toString()}`);
@@ -143,7 +159,18 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Admin
+  // Security Overview (Any Authenticated Role)
+  getSecurityChainVerification: () =>
+    request<{ valid: boolean; totalRecords: number; latestHash?: string; message: string; brokenAtId?: number; reason?: string }>(
+      '/documents/security/verify-chain'
+    ),
+
+  getSecurityEvents: () =>
+    request<{ totalDenialsLast24h: number; totalAuditedRecords: number; recentDenials: any[] }>(
+      '/documents/security/events'
+    ),
+
+  // Admin Only
   getAuditLogs: (params: { page?: number; limit?: number; action?: string; status?: string } = {}) => {
     const searchParams = new URLSearchParams();
     if (params.page) searchParams.append('page', params.page.toString());

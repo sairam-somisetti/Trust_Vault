@@ -1,122 +1,162 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext.js';
 import { Navbar } from './components/Navbar.js';
-import { DocumentList } from './components/DocumentList.js';
-import { AdminAuditView } from './components/AdminAuditView.js';
-import { AuthModal } from './components/AuthModal.js';
-import { api } from './api.js';
-import { User } from './types.js';
-import { ShieldCheck, Lock, Activity, EyeOff } from 'lucide-react';
+import { LoginPage } from './pages/LoginPage.js';
+import { RegisterPage } from './pages/RegisterPage.js';
+import { DocumentsPage } from './pages/DocumentsPage.js';
+import { DocumentDetailPage } from './pages/DocumentDetailPage.js';
+import { SharedWithMePage } from './pages/SharedWithMePage.js';
+import { AccessManagementPage } from './pages/AccessManagementPage.js';
+import { AdminAuditPage } from './pages/AdminAuditPage.js';
+import { SecurityOverviewPage } from './pages/SecurityOverviewPage.js';
+import { UnauthorizedPage } from './pages/UnauthorizedPage.js';
+import { NotFoundPage } from './pages/NotFoundPage.js';
+import { UserRole } from './types.js';
 
-export function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'documents' | 'audit'>('documents');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    checkCurrentUser();
-  }, []);
-
-  const checkCurrentUser = async () => {
-    const token = localStorage.getItem('tv_token');
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await api.me();
-      setCurrentUser(res.user);
-    } catch {
-      localStorage.removeItem('tv_token');
-      setCurrentUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
-    setActiveTab(user.role === 'ADMIN' ? 'audit' : 'documents');
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('tv_token');
-    setCurrentUser(null);
-  };
-
-  const handleSwitchUser = async (email: string) => {
-    try {
-      const res = await api.login({ email, password: 'Password123!' });
-      localStorage.setItem('tv_token', res.token);
-      setCurrentUser(res.user);
-      setActiveTab(res.user.role === 'ADMIN' ? 'audit' : 'documents');
-    } catch (err: any) {
-      alert(`Switch user failed: ${err.message}`);
-    }
-  };
+// Route Guard: Requires Authenticated Identity
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles?: UserRole[] }) {
+  const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-sm">
-        Initializing TrustVault Zero-Trust Security Environment...
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-xs">
+        Verifying cryptographic session...
       </div>
     );
   }
 
+  if (!user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// Route Guard: Redirects Authenticated Users Away From Login/Register
+function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500 text-xs">
+        Initializing security environment...
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to={user.role === 'ADMIN' ? '/admin/audit' : '/documents'} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+// App Layout with Glassmorphic Navbar
+function AppLayout() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
-      <Navbar
-        currentUser={currentUser}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onLogout={handleLogout}
-        onSwitchUser={handleSwitchUser}
-      />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Core System Security Posture Banner */}
-        <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-            <div className="text-xs">
-              <div className="font-semibold text-white">Central Authorization Choke Point</div>
-              <div className="text-slate-400 text-[11px]">Server validates DB grants at 0ms stream</div>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-lg bg-purple-600/20 text-purple-400 flex items-center justify-center shrink-0">
-              <Lock className="h-4 w-4" />
-            </div>
-            <div className="text-xs">
-              <div className="font-semibold text-white">Cryptographic SHA-256 Hash Chaining</div>
-              <div className="text-slate-400 text-[11px]">Append-only ledger detects any quiet edit</div>
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex items-center space-x-3">
-            <div className="h-8 w-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center shrink-0">
-              <Activity className="h-4 w-4" />
-            </div>
-            <div className="text-xs">
-              <div className="font-semibold text-white">Instant Revocation (Zero-Lag)</div>
-              <div className="text-slate-400 text-[11px]">No presigned URLs • No stale tokens</div>
-            </div>
-          </div>
-        </div>
-
-        {currentUser && (
-          <>
-            {activeTab === 'documents' && <DocumentList currentUser={currentUser} />}
-            {activeTab === 'audit' && currentUser.role === 'ADMIN' && <AdminAuditView />}
-          </>
-        )}
+    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+      <Navbar />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+        <Outlet />
       </main>
-
-      {!currentUser && <AuthModal onSuccess={handleLoginSuccess} />}
     </div>
   );
 }
+
+export function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Authentication Routes */}
+          <Route
+            path="/login"
+            element={
+              <PublicOnlyRoute>
+                <LoginPage />
+              </PublicOnlyRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicOnlyRoute>
+                <RegisterPage />
+              </PublicOnlyRoute>
+            }
+          />
+
+          {/* Protected Application Routes */}
+          <Route element={<AppLayout />}>
+            <Route index element={<Navigate to="/documents" replace />} />
+
+            <Route
+              path="/documents"
+              element={
+                <ProtectedRoute>
+                  <DocumentsPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/documents/:id"
+              element={
+                <ProtectedRoute>
+                  <DocumentDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/shared-with-me"
+              element={
+                <ProtectedRoute>
+                  <SharedWithMePage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/access-management"
+              element={
+                <ProtectedRoute allowedRoles={['DOCUMENT_OWNER', 'ADMIN']}>
+                  <AccessManagementPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/security"
+              element={
+                <ProtectedRoute>
+                  <SecurityOverviewPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/admin/audit"
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminAuditPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}
+
 export default App;

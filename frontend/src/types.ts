@@ -14,11 +14,13 @@ export interface DocumentItem {
   category: string;
   mimeType: string;
   fileSize: number;
+  checksum?: string;
   isOwner: boolean;
   userPermission: 'OWNER' | 'READ' | 'EDIT' | 'NONE';
   owner?: { id: string; name: string; email: string };
   createdAt: string;
   updatedAt: string;
+  grants?: DocumentGrant[];
 }
 
 export interface DocumentGrant {
