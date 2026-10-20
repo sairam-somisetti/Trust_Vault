@@ -94,10 +94,8 @@ flowchart LR
 
 ---
 
-## Interview Defense Quick Reference
-
-When asked:
-> *"Where is the authorisation decision made when someone downloads a file, and what would happen if that line were removed?"*
+when any one asks:
+ *"Where is the authorisation decision made when someone downloads a file, and what would happen if that line were removed?"*
 
 1. **File**: `backend/src/middleware/authorizeDocument.ts`
 2. **Line**: Line 92: `if (!grant) throw new AuthorizationError('Access Denied', 403);`
