@@ -1,0 +1,86 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  passwordHash String
+  name         String
+  role         String          @default("VIEWER") // ADMIN, DOCUMENT_OWNER, VIEWER
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  ownedDocuments Document[]    @relation("DocumentOwner")
+  grants         DocumentGrant[] @relation("GrantedToUser")
+  givenGrants    DocumentGrant[] @relation("GrantedByUser")
+
+  @@index([email])
+}
+
+model Document {
+  id               String          @id @default(uuid())
+  name             String
+  storageKey       String          @unique
+  mimeType         String
+  fileSize         Int
+  category         String          @default("General")
+  ownerId          String
+  owner            User            @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  encryptionIv     String          // 12-byte hex IV for AES-256-GCM
+  encryptionAuthTag String         // 16-byte hex GCM auth tag
+  checksum         String          // SHA-256 hash of original plaintext
+  isDeleted        Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  grants           DocumentGrant[]
+
+  @@index([ownerId])
+  @@index([category])
+  @@index([name])
+}
+
+model DocumentGrant {
+  id          String      @id @default(uuid())
+  documentId  String
+  document    Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User        @relation("GrantedToUser", fields: [userId], references: [id], onDelete: Cascade)
+  permission  String      @default("READ") // READ, EDIT
+  grantedById String
+  grantedBy   User        @relation("GrantedByUser", fields: [grantedById], references: [id])
+  grantedAt   DateTime    @default(now())
+  notes       String?
+
+  @@unique([documentId, userId])
+  @@index([userId])
+  @@index([documentId])
+}
+
+// Cryptographic Append-Only Ledger: decoupled from foreign keys to guarantee evidence permanence
+model AuditLog {
+  id           Int       @id @default(autoincrement())
+  timestamp    DateTime  @default(now())
+  actorId      String?
+  actorEmail   String?
+  actorIp      String
+  action       String    // AUTH_LOGIN, AUTH_REGISTER, DOCUMENT_UPLOAD, DOCUMENT_READ, DOCUMENT_DOWNLOAD, DOCUMENT_EDIT, DOCUMENT_DELETE, GRANT_CREATED, GRANT_REVOKED, ACCESS_DENIED, AI_RECOMMENDATION_GENERATED, AI_RECOMMENDATION_APPROVED, AUDIT_VERIFIED
+  resourceId   String?
+  resourceType String?   // DOCUMENT, GRANT, USER, SYSTEM
+  status       String    // SUCCESS, DENIED
+  details      String?   // JSON payload with metadata, AI reason, or failure details
+  prevHash     String
+  hash         String
+
+  @@index([actorId])
+  @@index([resourceId])
+  @@index([action])
+  @@index([timestamp])
+}
