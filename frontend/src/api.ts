@@ -1,6 +1,6 @@
 import { User, DocumentItem, DocumentGrant, AuditRecord, AiSuggestion } from './types.js';
 
-const API_BASE = '/api';
+const API_BASE = 'https://trustvault-backend-36v6.onrender.com/api';
 
 export class ApiError extends Error {
   status: number;
