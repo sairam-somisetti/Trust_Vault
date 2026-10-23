@@ -20,7 +20,7 @@ export class AiController {
   static async suggestAccess(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       // Must be owner to manage access recommendations
@@ -141,7 +141,7 @@ export class AiController {
   static async approveRecommendation(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       await authorizeDocumentAccess(req, documentId, 'MANAGE_ACCESS');

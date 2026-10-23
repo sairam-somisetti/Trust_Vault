@@ -135,7 +135,7 @@ export class AdminController {
    * Toggles active state of a user. Immediate session cutoff.
    */
   static async toggleUserStatus(req: AuthenticatedRequest, res: Response) {
-    const targetUserId = req.params.id;
+    const targetUserId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     const { isActive } = req.body;
 
     try {

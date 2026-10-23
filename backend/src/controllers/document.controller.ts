@@ -219,7 +219,7 @@ export class DocumentController {
   static async getById(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       const { document, grant } = await authorizeDocumentAccess(req, documentId, 'READ');
@@ -285,7 +285,7 @@ export class DocumentController {
   static async download(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       // 1. Live authorization verification at millisecond of download
@@ -333,7 +333,7 @@ export class DocumentController {
   static async update(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       await authorizeDocumentAccess(req, documentId, 'EDIT');
@@ -378,7 +378,7 @@ export class DocumentController {
   static async delete(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       const { document } = await authorizeDocumentAccess(req, documentId, 'DELETE');
@@ -416,7 +416,7 @@ export class DocumentController {
    * Lists all grants for a document (Owner only).
    */
   static async getGrants(req: AuthenticatedRequest, res: Response) {
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       await authorizeDocumentAccess(req, documentId, 'MANAGE_ACCESS');
@@ -445,7 +445,7 @@ export class DocumentController {
   static async grantAccess(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
 
     try {
       await authorizeDocumentAccess(req, documentId, 'MANAGE_ACCESS');
@@ -522,8 +522,8 @@ export class DocumentController {
   static async revokeAccess(req: AuthenticatedRequest, res: Response) {
     const actor = req.user!;
     const actorIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
-    const documentId = req.params.id;
-    const targetUserId = req.params.userId;
+    const documentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const targetUserId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
 
     try {
       await authorizeDocumentAccess(req, documentId, 'MANAGE_ACCESS');
